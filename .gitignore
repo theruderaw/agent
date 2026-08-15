@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Type checking / linting
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# Build / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# IDEs / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Application-generated files
+uploads/
+workspace/
+
+# Alembic / temporary files
+*.tmp
+*.bak
