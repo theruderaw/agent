@@ -1,3 +1,5 @@
+
+
 import math
 
 def hcf(a: int, b: int) -> int:
