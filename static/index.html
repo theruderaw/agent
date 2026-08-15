@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent POC</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background: #121212;
+            color: #eee;
+        }
+
+        textarea,
+        input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px;
+            margin: 8px 0;
+            background: #1e1e1e;
+            color: #eee;
+            border: 1px solid #444;
+            border-radius: 5px;
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            padding: 9px 16px;
+            margin: 5px 5px 5px 0;
+            border: 0;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #runButton,
+        #respondButton {
+            background: #eee;
+            color: #111;
+        }
+
+        #status {
+            margin: 15px 0;
+            color: #aaa;
+        }
+
+        #result,
+        #events {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+
+        .event {
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .event:last-child {
+            border-bottom: 0;
+        }
+
+        .event-type {
+            font-weight: bold;
+        }
+
+        .event-payload {
+            margin-top: 5px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            color: #bbb;
+        }
+
+        #responseBox {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Agent POC</h1>
+
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" placeholder="Ask the agent something..."></textarea>
+
+    <button id="runButton">Run</button>
+
+    <div id="status">Idle</div>
+
+    <div id="result"></div>
+
+    <div id="responseBox">
+        <label for="response">Agent question</label>
+        <input id="response" placeholder="Enter your response...">
+        <button id="respondButton">Respond</button>
+    </div>
+
+    <h3>Events</h3>
+    <div id="events">No events yet.</div>
+
+    <script>
+        const promptInput = document.getElementById("prompt");
+        const responseInput = document.getElementById("response");
+        const runButton = document.getElementById("runButton");
+        const respondButton = document.getElementById("respondButton");
+        const responseBox = document.getElementById("responseBox");
+        const status = document.getElementById("status");
+        const result = document.getElementById("result");
+        const events = document.getElementById("events");
+
+        let currentRunId = null;
+
+        runButton.addEventListener("click", runAgent);
+        respondButton.addEventListener("click", respondToAgent);
+
+        async function runAgent() {
+            const prompt = promptInput.value.trim();
+
+            if (!prompt) {
+                return;
+            }
+
+            setBusy(true);
+            result.innerHTML = "";
+            responseBox.style.display = "none";
+            events.textContent = "Loading...";
+            status.textContent = "Running...";
+
+            try {
+                const response = await fetch("/agent/runs/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({ prompt })
+                });
+
+                const data = await readResponse(response);
+
+                currentRunId = data.run_id;
+                renderResult(data);
+                await loadEvents(currentRunId);
+
+                status.textContent = `Run ${currentRunId}: ${data.status}`;
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function respondToAgent() {
+            const message = responseInput.value.trim();
+
+            if (!currentRunId || !message) {
+                return;
+            }
+
+            setBusy(true);
+            status.textContent = "Resuming agent...";
+
+            try {
+                const response = await fetch(`/agent/runs/${currentRunId}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await readResponse(response);
+
+                renderResult(data);
+                await loadEvents(currentRunId);
+
+                responseInput.value = "";
+                status.textContent = `Run ${currentRunId}: ${data.status}`;
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function readResponse(response) {
+            const data = await response.json().catch(() => null);
+
+            if (!response.ok) {
+                throw new Error(data?.detail || "Request failed");
+            }
+
+            return data;
+        }
+
+        function renderResult(data) {
+            if (data.status === "completed") {
+                result.innerHTML = `<strong>Answer:</strong><br>${escapeHtml(data.answer ?? "")}`;
+                responseBox.style.display = "none";
+            } else if (data.status === "waiting_for_user") {
+                result.innerHTML = `<strong>Agent needs input:</strong><br>${escapeHtml(data.question ?? "")}`;
+                responseBox.style.display = "block";
+            } else if (data.status === "refused") {
+                result.innerHTML = `<strong>Refused:</strong><br>${escapeHtml(data.reason ?? "")}`;
+                responseBox.style.display = "none";
+            }
+        }
+
+        async function loadEvents(runId) {
+            try {
+                const response = await fetch(`/agent/runs/${runId}/events`);
+
+                if (!response.ok) {
+                    throw new Error("Failed to load events");
+                }
+
+                const data = await response.json();
+
+                if (!data.length) {
+                    events.textContent = "No events yet.";
+                    return;
+                }
+
+                events.innerHTML = "";
+
+                for (const event of data) {
+                    const wrapper = document.createElement("div");
+                    wrapper.className = "event";
+
+                    const type = document.createElement("div");
+                    type.className = "event-type";
+                    type.textContent = event.event_type;
+
+                    const payload = document.createElement("div");
+                    payload.className = "event-payload";
+                    payload.textContent =
+                        typeof event.payload === "object"
+                            ? JSON.stringify(event.payload, null, 2)
+                            : event.payload ?? "";
+
+                    wrapper.appendChild(type);
+                    wrapper.appendChild(payload);
+                    events.appendChild(wrapper);
+                }
+            } catch (error) {
+                events.textContent = `Error loading events: ${error.message}`;
+            }
+        }
+
+        function setBusy(busy) {
+            runButton.disabled = busy;
+            respondButton.disabled = busy;
+        }
+
+        function escapeHtml(value) {
+            const div = document.createElement("div");
+            div.textContent = value;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+
+</html>
