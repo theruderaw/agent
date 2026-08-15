@@ -11,6 +11,7 @@ from app.agent.state import State
 
 NUMS_FILE = Path("./workspace/nums.txt")
 
+# op name -> (python callable, symbol used in prompts, natural-language verb)
 OPS = {
     "add": (operator.add, "+", "add"),
     "subtract": (operator.sub, "-", "subtract"),
@@ -20,6 +21,11 @@ OPS = {
 
 
 def _read_file_numbers() -> tuple[float, float]:
+    """
+    Read the two numbers out of workspace/nums.txt so tests assert against
+    whatever is actually in the file rather than a hardcoded guess.
+    Supports either "a, b" on one line or "a" / "b" on two lines.
+    """
     raw = NUMS_FILE.read_text().strip()
     if "," in raw:
         parts = raw.split(",")
@@ -30,17 +36,36 @@ def _read_file_numbers() -> tuple[float, float]:
 
 
 def _format_expected(value: float) -> str:
+    """
+    Format a computed expected value the way it's likely to appear in a
+    model's natural-language final answer: integers with no trailing
+    '.0', floats rounded to a couple decimal places.
+    """
     if value == int(value):
         return str(int(value))
     return f"{value:.2f}"
 
 
 def _result_contains_number(result: str, expected: float, tolerance: float = 0.01) -> bool:
+    """
+    Check whether a model's natural-language answer contains a number
+    matching `expected`, tolerating formatting differences the model is
+    free to choose: thousands separators ("4,213,713"), and differing
+    decimal precision for non-integer results ("0.3596" vs "0.36").
+    """
+    assert isinstance(result, str), (
+        f"Expected a final string answer but got {type(result).__name__}: {result!r}. "
+        "The model likely chose ask_user/refuse instead of completing the task."
+    )
+
     cleaned = result.replace(",", "")
 
     if expected == int(expected):
         return str(int(expected)) in cleaned
 
+    # Pull out every number-looking substring and compare numerically
+    # within tolerance, since the model may round to more or fewer
+    # decimal places than we did.
     import re
 
     for match in re.findall(r"-?\d+\.\d+", cleaned):
@@ -86,6 +111,9 @@ def test_ask_user():
     assert result.question
 
     events = get_events(run_id)
+
+    # ask_user is a pause, not a terminus — no COMPLETED event follows it,
+    # so ASK_USER is genuinely the last event.
     assert events[-1].event_type == "ASK_USER"
     assert events[-1].payload == result.question
 
@@ -105,6 +133,8 @@ def test_refuse():
     assert result.reason == "I cannot help with that request."
 
     events = get_events(run_id)
+
+    # refuse is a true terminus: REFUSED is followed by COMPLETED.
     assert events[-2].event_type == "REFUSED"
     assert events[-2].payload == "I cannot help with that request."
     assert events[-1].event_type == "COMPLETED"
@@ -143,6 +173,7 @@ def test_runtime_persists_run_and_events():
     assert events[2].sequence == 2
     assert events[2].payload
 
+    # FINAL is the "why" event; COMPLETED (added after it) is the terminus.
     assert events[-2].event_type == "FINAL"
     assert events[-2].payload
     assert "145" in events[-2].payload
@@ -163,6 +194,7 @@ def test_iterations():
     assert expected in result
 
     events = get_events(run_id)
+
     event_types = [event.event_type for event in events]
 
     assert "TOOL_INPUT" in event_types
@@ -181,13 +213,16 @@ def test_iterations():
 
 
 # ---------------------------------------------------------------------------
-# Arithmetic grid: real model, no mocks.
+# Arithmetic grid: 4 operations x 3 prompt scenarios, real model, no mocks.
+# Expected values are computed at test time from the actual file contents,
+# so these stay correct even if workspace/nums.txt changes.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("op_name", OPS.keys())
 def test_direct_numbers(op_name):
+    """Scenario 1: both numbers given directly in the prompt."""
     fn, symbol, verb = OPS[op_name]
-    a, b = 48, 6
+    a, b = 48, 6  # chosen directly; nonzero divisor for divide
 
     expected = fn(a, b)
     prompt = f"Calculate {a} {symbol} {b}"
@@ -200,6 +235,7 @@ def test_direct_numbers(op_name):
 
 @pytest.mark.parametrize("op_name", OPS.keys())
 def test_numbers_from_file(op_name):
+    """Scenario 2: both numbers come from workspace/nums.txt."""
     fn, symbol, verb = OPS[op_name]
     a, b = _read_file_numbers()
 
@@ -220,10 +256,14 @@ def test_numbers_from_file(op_name):
 
 @pytest.mark.parametrize("op_name", OPS.keys())
 def test_user_number_against_file_sum(op_name):
+    """
+    Scenario 3: combine a number given in the prompt with the sum of the
+    two numbers in workspace/nums.txt, e.g. $num - (file.a + file.b).
+    """
     fn, symbol, verb = OPS[op_name]
     a, b = _read_file_numbers()
     file_sum = a + b
-    user_num = 500
+    user_num = 500  # arbitrary, chosen directly so it's under our control
 
     if op_name == "divide" and file_sum == 0:
         pytest.skip("Sum of numbers in nums.txt is 0; cannot test division by it.")
@@ -421,7 +461,8 @@ def test_unit_tool_exception_feeds_back_to_qwen():
     events = get_events(run_id)
     tool_failed = next(e for e in events if e.event_type == "TOOL_FAILED")
     assert "division by zero" in str(tool_failed.payload)
-    
+
+
 def test_unit_permission_gated_write():
     responses = [
         _json({
