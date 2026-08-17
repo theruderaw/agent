@@ -1,0 +1,1554 @@
+{
+  "communication": {
+    "email": {
+      "name": "communication:email",
+      "description": "Send an email to the given address with a subject and body.",
+      "input_schema": {
+        "properties": {
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "subject",
+          "body"
+        ],
+        "title": "CommunicationEmailArgs",
+        "type": "object"
+      }
+    },
+    "message": {
+      "name": "communication:message",
+      "description": "Send a direct message to the given recipient.",
+      "input_schema": {
+        "properties": {
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "body"
+        ],
+        "title": "CommunicationMessageArgs",
+        "type": "object"
+      }
+    }
+  },
+  "database": {
+    "query": {
+      "name": "database:query",
+      "description": "Run a SQL query with optional bound parameters and return the resulting rows.",
+      "input_schema": {
+        "properties": {
+          "sql": {
+            "title": "Sql",
+            "type": "string"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Params"
+          }
+        },
+        "required": [
+          "sql"
+        ],
+        "title": "DatabaseQueryArgs",
+        "type": "object"
+      }
+    },
+    "transaction": {
+      "name": "database:transaction",
+      "description": "Run multiple SQL statements as a single atomic transaction.",
+      "input_schema": {
+        "properties": {
+          "statements": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statements",
+            "type": "array"
+          },
+          "params": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {},
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Params"
+          }
+        },
+        "required": [
+          "statements"
+        ],
+        "title": "DatabaseTransactionArgs",
+        "type": "object"
+      }
+    }
+  },
+  "environment": {
+    "inspect": {
+      "name": "environment:inspect",
+      "description": "Show runtime configuration.",
+      "input_schema": {
+        "properties": {},
+        "title": "EnvironmentInspectArgs",
+        "type": "object"
+      }
+    }
+  },
+  "file-system": {
+    "copy_path": {
+      "name": "file-system:copy_path",
+      "description": "Copy a file to a new location.",
+      "input_schema": {
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination"
+        ],
+        "title": "File-SystemCopyPathArgs",
+        "type": "object"
+      }
+    },
+    "delete_path": {
+      "name": "file-system:delete_path",
+      "description": "Delete a file, or a directory if recursive is true.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "recursive": {
+            "default": false,
+            "title": "Recursive",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "File-SystemDeletePathArgs",
+        "type": "object"
+      }
+    },
+    "exists": {
+      "name": "file-system:exists",
+      "description": "Check whether a file or directory exists at the given path.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "File-SystemExistsArgs",
+        "type": "object"
+      }
+    },
+    "find": {
+      "name": "file-system:find",
+      "description": "Find files whose name matches a glob pattern, searched recursively from the given path.",
+      "input_schema": {
+        "properties": {
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "path": {
+            "default": ".",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "title": "File-SystemFindArgs",
+        "type": "object"
+      }
+    },
+    "grep": {
+      "name": "file-system:grep",
+      "description": "Search for a regex pattern inside files, recursively from the given path, returning matching lines.",
+      "input_schema": {
+        "properties": {
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "path": {
+            "default": ".",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "title": "File-SystemGrepArgs",
+        "type": "object"
+      }
+    },
+    "list_dir": {
+      "name": "file-system:list_dir",
+      "description": "List the names of files and folders inside a directory.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "File-SystemListDirArgs",
+        "type": "object"
+      }
+    },
+    "make_dir": {
+      "name": "file-system:make_dir",
+      "description": "Create a directory, including any missing parent directories.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "exist_ok": {
+            "default": true,
+            "title": "Exist Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "File-SystemMakeDirArgs",
+        "type": "object"
+      }
+    },
+    "move_path": {
+      "name": "file-system:move_path",
+      "description": "Move or rename a file or directory.",
+      "input_schema": {
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination"
+        ],
+        "title": "File-SystemMovePathArgs",
+        "type": "object"
+      }
+    },
+    "patch_path": {
+      "name": "file-system:patch_path",
+      "description": "Replace text in a file. By default old_str must match exactly once; pass replace_all to replace every occurrence.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "old_str": {
+            "title": "Old Str",
+            "type": "string"
+          },
+          "new_str": {
+            "title": "New Str",
+            "type": "string"
+          },
+          "replace_all": {
+            "default": false,
+            "title": "Replace All",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "old_str",
+          "new_str"
+        ],
+        "title": "File-SystemPatchPathArgs",
+        "type": "object"
+      }
+    },
+    "read_path": {
+      "name": "file-system:read_path",
+      "description": "Read and return the text contents of a file at the given path.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "File-SystemReadPathArgs",
+        "type": "object"
+      }
+    },
+    "stat": {
+      "name": "file-system:stat",
+      "description": "Get metadata about a file or directory: size, type, and modified time.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "File-SystemStatArgs",
+        "type": "object"
+      }
+    },
+    "write_path": {
+      "name": "file-system:write_path",
+      "description": "Write text content to a file at the given path, creating it if it doesn't exist.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "append": {
+            "default": false,
+            "title": "Append",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "title": "File-SystemWritePathArgs",
+        "type": "object"
+      }
+    }
+  },
+  "git": {
+    "add": {
+      "name": "git:add",
+      "description": "Stage the given file paths for the next commit.",
+      "input_schema": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paths",
+            "type": "array"
+          }
+        },
+        "required": [
+          "paths"
+        ],
+        "title": "GitAddArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "branch": {
+      "name": "git:branch",
+      "description": "List all branches, or create a new branch if a name is given.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Name"
+          }
+        },
+        "title": "GitBranchArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "checkout": {
+      "name": "git:checkout",
+      "description": "Switch the working directory to the given branch or commit.",
+      "input_schema": {
+        "properties": {
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "GitCheckoutArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "clone": {
+      "name": "git:clone",
+      "description": "Clone a remote Git repository into the workspace.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "destination"
+        ],
+        "title": "GitCloneArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "commit": {
+      "name": "git:commit",
+      "description": "Commit currently staged changes with the given commit message.",
+      "input_schema": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "GitCommitArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "diff": {
+      "name": "git:diff",
+      "description": "Show unstaged changes, optionally scoped to a single file path.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Path"
+          }
+        },
+        "title": "GitDiffArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "fetch": {
+      "name": "git:fetch",
+      "description": "Download new commits and branches from a remote without merging them.",
+      "input_schema": {
+        "properties": {
+          "remote": {
+            "default": "origin",
+            "title": "Remote",
+            "type": "string"
+          }
+        },
+        "title": "GitFetchArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "init": {
+      "name": "git:init",
+      "description": "Initialize a new Git repository inside the workspace.",
+      "input_schema": {
+        "properties": {
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destination"
+        ],
+        "title": "GitInitArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "log": {
+      "name": "git:log",
+      "description": "List recent commits with their hash, author, date, and message.",
+      "input_schema": {
+        "properties": {
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "title": "GitLogArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "merge": {
+      "name": "git:merge",
+      "description": "Merge the given branch into the current branch.",
+      "input_schema": {
+        "properties": {
+          "branch": {
+            "title": "Branch",
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch"
+        ],
+        "title": "GitMergeArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "pull": {
+      "name": "git:pull",
+      "description": "Fetch from a remote and merge into the current branch.",
+      "input_schema": {
+        "properties": {
+          "remote": {
+            "default": "origin",
+            "title": "Remote",
+            "type": "string"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Branch"
+          }
+        },
+        "title": "GitPullArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "push": {
+      "name": "git:push",
+      "description": "Push local commits on the current branch to a remote.",
+      "input_schema": {
+        "properties": {
+          "remote": {
+            "default": "origin",
+            "title": "Remote",
+            "type": "string"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Branch"
+          }
+        },
+        "title": "GitPushArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "rebase": {
+      "name": "git:rebase",
+      "description": "Rebase the current branch onto the given branch or commit.",
+      "input_schema": {
+        "properties": {
+          "onto": {
+            "title": "Onto",
+            "type": "string"
+          }
+        },
+        "required": [
+          "onto"
+        ],
+        "title": "GitRebaseArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "restore": {
+      "name": "git:restore",
+      "description": "Discard unstaged changes to the given files, or unstage them if staged is true.",
+      "input_schema": {
+        "properties": {
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "staged": {
+            "default": false,
+            "title": "Staged",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "paths"
+        ],
+        "title": "GitRestoreArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "show": {
+      "name": "git:show",
+      "description": "Show the full diff and metadata for a single commit.",
+      "input_schema": {
+        "properties": {
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref"
+        ],
+        "title": "GitShowArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "stash": {
+      "name": "git:stash",
+      "description": "Save uncommitted changes aside (push), or reapply the most recent stash (pop).",
+      "input_schema": {
+        "properties": {
+          "action": {
+            "default": "push",
+            "title": "Action",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Message"
+          }
+        },
+        "title": "GitStashArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    },
+    "status": {
+      "name": "git:status",
+      "description": "Show the current branch, and which files are staged, modified, or untracked.",
+      "input_schema": {
+        "properties": {},
+        "title": "GitStatusArgs",
+        "type": "object"
+      },
+      "skills": "git-skills.md"
+    }
+  },
+  "http": {
+    "delete": {
+      "name": "http:delete",
+      "description": "Send an HTTP DELETE request to the given URL.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpDeleteArgs",
+        "type": "object"
+      }
+    },
+    "get": {
+      "name": "http:get",
+      "description": "Send an HTTP GET request to the given URL.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpGetArgs",
+        "type": "object"
+      }
+    },
+    "head": {
+      "name": "http:head",
+      "description": "Send an HTTP HEAD request and return the response headers.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpHeadArgs",
+        "type": "object"
+      }
+    },
+    "options": {
+      "name": "http:options",
+      "description": "Send an HTTP OPTIONS request to discover allowed methods on the given URL.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpOptionsArgs",
+        "type": "object"
+      }
+    },
+    "patch": {
+      "name": "http:patch",
+      "description": "Send an HTTP PATCH request with an optional JSON body.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpPatchArgs",
+        "type": "object"
+      }
+    },
+    "ping": {
+      "name": "http:ping",
+      "description": "Check whether a URL is reachable, returning False for both network failures and SSRF-blocked URLs.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpPingArgs",
+        "type": "object"
+      }
+    },
+    "post": {
+      "name": "http:post",
+      "description": "Send an HTTP POST request with an optional JSON body.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpPostArgs",
+        "type": "object"
+      }
+    },
+    "put": {
+      "name": "http:put",
+      "description": "Send an HTTP PUT request with an optional JSON body.",
+      "input_schema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Body"
+          },
+          "headers": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Headers"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "HttpPutArgs",
+        "type": "object"
+      }
+    }
+  },
+  "model": {
+    "invoke": {
+      "name": "model:invoke",
+      "description": "Send a prompt to a language model and return its response.",
+      "input_schema": {
+        "properties": {
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "ModelInvokeArgs",
+        "type": "object"
+      }
+    }
+  },
+  "mypy": {
+    "check": {
+      "name": "mypy:check",
+      "description": "Type-check Python code with mypy.",
+      "input_schema": {
+        "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Args"
+          }
+        },
+        "title": "MypyCheckArgs",
+        "type": "object"
+      }
+    }
+  },
+  "pip": {
+    "check": {
+      "name": "pip:check",
+      "description": "Check installed packages for dependency conflicts.",
+      "input_schema": {
+        "properties": {},
+        "title": "PipCheckArgs",
+        "type": "object"
+      }
+    },
+    "freeze": {
+      "name": "pip:freeze",
+      "description": "List installed packages in requirements format.",
+      "input_schema": {
+        "properties": {},
+        "title": "PipFreezeArgs",
+        "type": "object"
+      }
+    },
+    "install": {
+      "name": "pip:install",
+      "description": "Install Python packages.",
+      "input_schema": {
+        "properties": {
+          "packages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Packages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "packages"
+        ],
+        "title": "PipInstallArgs",
+        "type": "object"
+      }
+    },
+    "list_installed": {
+      "name": "pip:list_installed",
+      "description": "List installed Python packages.",
+      "input_schema": {
+        "properties": {},
+        "title": "PipListInstalledArgs",
+        "type": "object"
+      }
+    },
+    "show": {
+      "name": "pip:show",
+      "description": "Show information about an installed Python package.",
+      "input_schema": {
+        "properties": {
+          "package": {
+            "title": "Package",
+            "type": "string"
+          }
+        },
+        "required": [
+          "package"
+        ],
+        "title": "PipShowArgs",
+        "type": "object"
+      }
+    },
+    "uninstall": {
+      "name": "pip:uninstall",
+      "description": "Uninstall Python packages.",
+      "input_schema": {
+        "properties": {
+          "packages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Packages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "packages"
+        ],
+        "title": "PipUninstallArgs",
+        "type": "object"
+      }
+    },
+    "upgrade": {
+      "name": "pip:upgrade",
+      "description": "Upgrade Python packages.",
+      "input_schema": {
+        "properties": {
+          "packages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Packages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "packages"
+        ],
+        "title": "PipUpgradeArgs",
+        "type": "object"
+      }
+    }
+  },
+  "process": {
+    "kill": {
+      "name": "process:kill",
+      "description": "Terminate a process that was started via the start tool.",
+      "input_schema": {
+        "properties": {
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pid"
+        ],
+        "title": "ProcessKillArgs",
+        "type": "object"
+      }
+    },
+    "ps": {
+      "name": "process:ps",
+      "description": "List currently running processes on the system.",
+      "input_schema": {
+        "properties": {},
+        "title": "ProcessPsArgs",
+        "type": "object"
+      }
+    },
+    "start": {
+      "name": "process:start",
+      "description": "Start a background process and return its process ID.",
+      "input_schema": {
+        "properties": {
+          "command": {
+            "title": "Command",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "title": "ProcessStartArgs",
+        "type": "object"
+      }
+    }
+  },
+  "pytest": {
+    "run": {
+      "name": "pytest:run",
+      "description": "Run pytest with the given arguments.",
+      "input_schema": {
+        "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Args"
+          }
+        },
+        "title": "PytestRunArgs",
+        "type": "object"
+      }
+    }
+  },
+  "python": {
+    "run": {
+      "name": "python:run",
+      "description": "Execute Python code.",
+      "input_schema": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "PythonRunArgs",
+        "type": "object"
+      }
+    },
+    "venv": {
+      "name": "python:venv",
+      "description": "Create a Python virtual environment.",
+      "input_schema": {
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "PythonVenvArgs",
+        "type": "object"
+      }
+    }
+  },
+  "ruff": {
+    "check": {
+      "name": "ruff:check",
+      "description": "Check Python code with Ruff.",
+      "input_schema": {
+        "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Args"
+          }
+        },
+        "title": "RuffCheckArgs",
+        "type": "object"
+      }
+    },
+    "format": {
+      "name": "ruff:format",
+      "description": "Format Python code with Ruff.",
+      "input_schema": {
+        "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Args"
+          }
+        },
+        "title": "RuffFormatArgs",
+        "type": "object"
+      }
+    }
+  },
+  "search": {
+    "search": {
+      "name": "search:search",
+      "description": "Run a web search for the given query and return the top matching results, along with a synthesized answer.",
+      "input_schema": {
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "max_results": {
+            "default": 5,
+            "title": "Max Results",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "SearchSearchArgs",
+        "type": "object"
+      }
+    }
+  },
+  "storage": {
+    "delete": {
+      "name": "storage:delete",
+      "description": "Delete the value stored under the given key.",
+      "input_schema": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "StorageDeleteArgs",
+        "type": "object"
+      }
+    },
+    "retrieve": {
+      "name": "storage:retrieve",
+      "description": "Retrieve the value stored under the given key.",
+      "input_schema": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "StorageRetrieveArgs",
+        "type": "object"
+      }
+    },
+    "store": {
+      "name": "storage:store",
+      "description": "Store a value under the given key.",
+      "input_schema": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "StorageStoreArgs",
+        "type": "object"
+      }
+    }
+  },
+  "time": {
+    "current": {
+      "name": "time:current",
+      "description": "Get the current date and time in the given timezone.",
+      "input_schema": {
+        "properties": {
+          "timezone": {
+            "default": "UTC",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "title": "TimeCurrentArgs",
+        "type": "object"
+      }
+    }
+  },
+  "uvicorn": {
+    "run": {
+      "name": "uvicorn:run",
+      "description": "Run a Uvicorn ASGI application.",
+      "input_schema": {
+        "properties": {
+          "app": {
+            "title": "App",
+            "type": "string"
+          },
+          "args": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Args"
+          }
+        },
+        "required": [
+          "app"
+        ],
+        "title": "UvicornRunArgs",
+        "type": "object"
+      }
+    }
+  }
+}
