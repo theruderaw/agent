@@ -150,7 +150,8 @@
         ],
         "title": "File-SystemCopyPathArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "delete_path": {
       "name": "file-system:delete_path",
@@ -172,7 +173,8 @@
         ],
         "title": "File-SystemDeletePathArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "exists": {
       "name": "file-system:exists",
@@ -189,7 +191,8 @@
         ],
         "title": "File-SystemExistsArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "find": {
       "name": "file-system:find",
@@ -211,7 +214,8 @@
         ],
         "title": "File-SystemFindArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "grep": {
       "name": "file-system:grep",
@@ -233,7 +237,8 @@
         ],
         "title": "File-SystemGrepArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "list_dir": {
       "name": "file-system:list_dir",
@@ -250,7 +255,8 @@
         ],
         "title": "File-SystemListDirArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "make_dir": {
       "name": "file-system:make_dir",
@@ -272,7 +278,8 @@
         ],
         "title": "File-SystemMakeDirArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "move_path": {
       "name": "file-system:move_path",
@@ -294,7 +301,8 @@
         ],
         "title": "File-SystemMovePathArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "patch_path": {
       "name": "file-system:patch_path",
@@ -326,7 +334,8 @@
         ],
         "title": "File-SystemPatchPathArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "read_path": {
       "name": "file-system:read_path",
@@ -343,7 +352,8 @@
         ],
         "title": "File-SystemReadPathArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "stat": {
       "name": "file-system:stat",
@@ -360,7 +370,8 @@
         ],
         "title": "File-SystemStatArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     },
     "write_path": {
       "name": "file-system:write_path",
@@ -387,7 +398,8 @@
         ],
         "title": "File-SystemWritePathArgs",
         "type": "object"
-      }
+      },
+      "skills": "filesystem-skiils.md"
     }
   },
   "git": {
@@ -783,7 +795,8 @@
         ],
         "title": "HttpDeleteArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     },
     "get": {
       "name": "http:get",
@@ -825,7 +838,8 @@
         ],
         "title": "HttpGetArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     },
     "head": {
       "name": "http:head",
@@ -867,7 +881,8 @@
         ],
         "title": "HttpHeadArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     },
     "options": {
       "name": "http:options",
@@ -909,7 +924,8 @@
         ],
         "title": "HttpOptionsArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     },
     "patch": {
       "name": "http:patch",
@@ -964,7 +980,8 @@
         ],
         "title": "HttpPatchArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     },
     "ping": {
       "name": "http:ping",
@@ -993,7 +1010,8 @@
         ],
         "title": "HttpPingArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     },
     "post": {
       "name": "http:post",
@@ -1048,7 +1066,8 @@
         ],
         "title": "HttpPostArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     },
     "put": {
       "name": "http:put",
@@ -1103,7 +1122,8 @@
         ],
         "title": "HttpPutArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     }
   },
   "model": {
@@ -1149,7 +1169,8 @@
         },
         "title": "MypyCheckArgs",
         "type": "object"
-      }
+      },
+      "skills": "testing-skills.md"
     }
   },
   "pip": {
@@ -1160,7 +1181,8 @@
         "properties": {},
         "title": "PipCheckArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     },
     "freeze": {
       "name": "pip:freeze",
@@ -1169,7 +1191,8 @@
         "properties": {},
         "title": "PipFreezeArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     },
     "install": {
       "name": "pip:install",
@@ -1189,7 +1212,8 @@
         ],
         "title": "PipInstallArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     },
     "list_installed": {
       "name": "pip:list_installed",
@@ -1198,7 +1222,8 @@
         "properties": {},
         "title": "PipListInstalledArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     },
     "show": {
       "name": "pip:show",
@@ -1215,7 +1240,8 @@
         ],
         "title": "PipShowArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     },
     "uninstall": {
       "name": "pip:uninstall",
@@ -1235,7 +1261,8 @@
         ],
         "title": "PipUninstallArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     },
     "upgrade": {
       "name": "pip:upgrade",
@@ -1255,7 +1282,8 @@
         ],
         "title": "PipUpgradeArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     }
   },
   "process": {
@@ -1327,7 +1355,8 @@
         },
         "title": "PytestRunArgs",
         "type": "object"
-      }
+      },
+      "skills": "testing-skills.md"
     }
   },
   "python": {
@@ -1346,7 +1375,8 @@
         ],
         "title": "PythonRunArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     },
     "venv": {
       "name": "python:venv",
@@ -1363,7 +1393,8 @@
         ],
         "title": "PythonVenvArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     }
   },
   "ruff": {
@@ -1390,7 +1421,8 @@
         },
         "title": "RuffCheckArgs",
         "type": "object"
-      }
+      },
+      "skills": "testing-skills.md"
     },
     "format": {
       "name": "ruff:format",
@@ -1415,7 +1447,8 @@
         },
         "title": "RuffFormatArgs",
         "type": "object"
-      }
+      },
+      "skills": "testing-skills.md"
     }
   },
   "search": {
@@ -1439,7 +1472,8 @@
         ],
         "title": "SearchSearchArgs",
         "type": "object"
-      }
+      },
+      "skills": "research-skills.md"
     }
   },
   "storage": {
@@ -1548,7 +1582,8 @@
         ],
         "title": "UvicornRunArgs",
         "type": "object"
-      }
+      },
+      "skills": "python-skills.md"
     }
   }
 }

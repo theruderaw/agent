@@ -5,6 +5,8 @@ from app.tools.base import Toolkit
 
 class PythonTools(Toolkit):
     namespace = "python"
+    skills = "python-skills.md"
+    
 
     def __init__(self):
         self.root = Path(__file__).parent.parent.parent.parent.resolve()

@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 
+from app import skills
 from app.tools.base import Toolkit
 
 _DEFAULT_TIMEOUT_SECONDS = 10
@@ -40,6 +41,7 @@ class HttpResponse(TypedDict):
 
 class HttpTools(Toolkit):
     namespace = "http"
+    skills = "research-skills.md"
 
     def __init__(
         self,
