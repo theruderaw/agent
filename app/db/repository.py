@@ -34,10 +34,9 @@ class RunRepository:
         self,
         run_id: UUID,
         action: AgentAction | None = None,
-        tool_completed: bool | None = None,
     ) -> Run:
         run = await self.get(run_id)
-        run.state = next_state(run.state, tool_completed=tool_completed, action=action)
+        run.state = next_state(run.state, action=action)
         await self.session.flush()
         return run
 
@@ -45,6 +44,13 @@ class RunRepository:
         run = await self.get(run_id)
         run.final_response = response
         run.state = State.FINAL
+        await self.session.flush()
+        return run
+
+    async def set_refused_response(self, run_id: UUID, reason: str) -> Run:
+        run = await self.get(run_id)
+        run.final_response = reason
+        run.state = State.REFUSED
         await self.session.flush()
         return run
 
@@ -154,6 +160,6 @@ class ToolExecutionRepository:
         )
 
         runs = RunRepository(self.session)
-        await runs.update_state(run_id, tool_completed=success)
+        await runs.update_state(run_id)
 
         return tool

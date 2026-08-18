@@ -16,9 +16,10 @@ class Qwen(LLM):
     async def generate(self, messages: list[Message]) -> LLMResponse:
         # Requirement 33: Explicit timeouts (connect, read, write)
         timeout = httpx.Timeout(
-            connect=5.0,   # Max time to establish a connection
-            read=30.0,     # Max time to wait for a response (the model thinking)
-            write=10.0,    # Max time to send the request payload
+            connect=5.0,
+            read=30.0,
+            write=10.0,
+            pool=10.0,
         )
 
         payload = {

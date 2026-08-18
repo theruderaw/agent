@@ -56,5 +56,7 @@ uploads/
 workspace/
 
 # Alembic / temporary files
+
+scratch/
 *.tmp
 *.bak

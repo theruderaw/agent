@@ -57,8 +57,6 @@ class TestRunRepositoryCreate:
         session = make_session()
         repo = RunRepository(session)
 
-        # session.refresh is what would normally populate generated fields;
-        # simulate that by giving the added Run object an id once refreshed.
         added_run: Run | None = None
 
         def capture_add(obj):
@@ -71,17 +69,13 @@ class TestRunRepositoryCreate:
 
         assert added_run is not None
         assert added_run.state == State.START
-        # create() must flush (to get a PK) then refresh, and must NOT commit
         session.flush.assert_awaited_once()
         session.refresh.assert_awaited_once_with(added_run)
         session.commit.assert_not_called()
-        # returned value is the (refreshed) run's id
         assert run_id == added_run.id
 
     @pytest.mark.asyncio
     async def test_create_never_commits(self):
-        """Repository methods must be composable into a caller-owned
-        transaction — see conversation history re: flush vs commit."""
         session = make_session()
         repo = RunRepository(session)
         await repo.create()
@@ -113,9 +107,9 @@ class TestRunRepositoryGet:
 
 class TestRunRepositoryUpdateState:
     @pytest.mark.asyncio
-    async def test_update_state_with_action_transitions_from_model_output(self):
+    async def test_update_state_with_action_transitions_from_model_call(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.MODEL_OUTPUT)
+        run = Run(id=uuid4(), state=State.MODEL_CALL)
         session.get.return_value = run
 
         repo = RunRepository(session)
@@ -127,35 +121,20 @@ class TestRunRepositoryUpdateState:
         session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_update_state_with_tool_completed_true(self):
+    async def test_update_state_tool_call_transitions_to_model_call(self):
         session = make_session()
         run = Run(id=uuid4(), state=State.TOOL_CALL)
         session.get.return_value = run
 
         repo = RunRepository(session)
-        result = await repo.update_state(run.id, tool_completed=True)
+        result = await repo.update_state(run.id)
 
-        assert result.state == State.TOOL_RESULT
-
-    @pytest.mark.asyncio
-    async def test_update_state_with_tool_completed_false(self):
-        session = make_session()
-        run = Run(id=uuid4(), state=State.TOOL_CALL)
-        session.get.return_value = run
-
-        repo = RunRepository(session)
-        result = await repo.update_state(run.id, tool_completed=False)
-
-        assert result.state == State.TOOL_FAILED
+        assert result.state == State.MODEL_CALL
 
     @pytest.mark.asyncio
-    async def test_update_state_model_output_without_action_raises(self):
-        """Regression guard: this is the exact bug found earlier — calling
-        next_state positionally silently dropped `action`. Confirms the
-        keyword-argument fix is in place and MODEL_OUTPUT genuinely
-        requires an action to proceed."""
+    async def test_update_state_model_call_without_action_raises(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.MODEL_OUTPUT)
+        run = Run(id=uuid4(), state=State.MODEL_CALL)
         session.get.return_value = run
 
         repo = RunRepository(session)
@@ -167,7 +146,7 @@ class TestRunRepositorySetFinalResponse:
     @pytest.mark.asyncio
     async def test_sets_response_and_final_state(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.MODEL_OUTPUT)
+        run = Run(id=uuid4(), state=State.MODEL_CALL)
         session.get.return_value = run
 
         repo = RunRepository(session)
@@ -213,7 +192,7 @@ class TestEventRepositoryAppend:
     @pytest.mark.asyncio
     async def test_first_event_gets_sequence_one(self):
         session = make_session()
-        session.exec.return_value = make_exec_result(None)  # no rows yet
+        session.exec.return_value = make_exec_result(None)
 
         repo = EventRepository(session)
         run_id = uuid4()
@@ -237,13 +216,10 @@ class TestEventRepositoryAppend:
 
     @pytest.mark.asyncio
     async def test_event_type_must_be_enum_value_not_arbitrary_string(self):
-        """Regression guard for the case-mismatch bug: passing a raw
-        string that isn't a valid EventType value should fail validation
-        rather than silently succeed."""
         with pytest.raises(ValueError):
             Event(
                 run_id=uuid4(),
-                event_type="TOOL_CALL",  # wrong case vs EventType.TOOL_CALL.value
+                event_type="TOOL_CALL",
                 sequence=1,
                 payload={},
             )
@@ -285,7 +261,7 @@ class TestToolExecutionRepositoryCreateExecution:
     @pytest.mark.asyncio
     async def test_creates_row_and_appends_tool_call_event(self):
         session = make_session()
-        session.exec.return_value = make_exec_result(None)  # EventRepository's MAX query
+        session.exec.return_value = make_exec_result(None)
 
         added: list = []
         session.add.side_effect = lambda obj: added.append(obj)
@@ -298,7 +274,6 @@ class TestToolExecutionRepositoryCreateExecution:
         assert tool.tool_name == "search"
         assert tool.arguments == {"q": "hi"}
 
-        # both a ToolExecution and an Event should have been added
         assert any(isinstance(o, ToolExecution) for o in added)
         assert any(isinstance(o, Event) for o in added)
 
@@ -306,9 +281,6 @@ class TestToolExecutionRepositoryCreateExecution:
         assert appended_event.event_type == EventType.TOOL_CALL
         assert appended_event.payload == {"q": "hi"}
 
-        # must not transition run state here — that's the runtime's job,
-        # driven by the model's original AgentAction (see conversation
-        # history: MODEL_OUTPUT -> TOOL_CALL happens upstream, not here)
         session.commit.assert_not_called()
 
 
@@ -324,9 +296,6 @@ class TestToolExecutionRepositoryCompleteExecution:
         )
         run = Run(id=run_id, state=State.TOOL_CALL)
 
-        # session.get is used twice: once for ToolExecution (inside
-        # complete_execution), once for Run (inside RunRepository.get,
-        # called via update_state). Return them in call order.
         session.get.side_effect = [existing_tool, run]
         session.exec.return_value = make_exec_result(None)
 
@@ -342,11 +311,11 @@ class TestToolExecutionRepositoryCompleteExecution:
         assert result.success is True
         assert result.result == {"answer": 42}
         assert result.completed_at is not None
-        assert run.state == State.TOOL_RESULT
+        assert run.state == State.MODEL_CALL
         session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_failure_path_sets_error_and_transitions_to_tool_failed(self):
+    async def test_failure_path_sets_error_and_transitions_to_model_call(self):
         session = make_session()
         tool_id = uuid4()
         run_id = uuid4()
@@ -370,7 +339,7 @@ class TestToolExecutionRepositoryCompleteExecution:
 
         assert result.success is False
         assert result.error == "timeout"
-        assert run.state == State.TOOL_FAILED
+        assert run.state == State.MODEL_CALL
 
     @pytest.mark.asyncio
     async def test_missing_tool_execution_raises(self):
