@@ -47,6 +47,7 @@ async def _handle_tool_call(
     action: ToolCall,
     registry: ToolRegistry,
     tool_executions: ToolExecutionRepository,
+    runs: RunRepository,
     session: AsyncSession,
 ) -> None:
     execution = await tool_executions.create_execution(
@@ -54,6 +55,9 @@ async def _handle_tool_call(
         tool_name=action.tool,
         arguments=action.arguments,
     )
+    await session.commit()
+
+    await runs.update_state(ctx.run_id, action=action)
     await session.commit()
 
     result = registry.dispatch(action.tool, action.arguments)
@@ -237,7 +241,7 @@ async def execute_run(
         ctx.messages.append(ContextMessage(role="assistant", content=response.content))
 
         if isinstance(action, ToolCall):
-            await _handle_tool_call(ctx, action, registry, tool_executions, session)
+            await _handle_tool_call(ctx, action, registry, tool_executions, runs, session)
             ctx.state = State.MODEL_CALL
 
         elif isinstance(action, SkillRequest):

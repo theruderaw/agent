@@ -55,8 +55,8 @@ class FakeLLM:
 
 
 class FakeRegistry:
-    def schemas_by_toolkit(self):
-        return {"calc": {"add": "add two numbers"}}
+    def schemas(self):
+        return [{"name": "calc:add", "description": "add two numbers", "input_schema": {}}]
 
     def dispatch(self, tool, arguments):
         return FakeToolResult(ok=True, data={"result": 42})
@@ -68,6 +68,9 @@ class FakeSkillLoader:
         class Skill:
             content: str
         return Skill(content=f"skill content for {name}")
+
+    def list_available(self):
+        return []
 
 
 def make_session():

@@ -4,7 +4,7 @@ registry.py
 Builds a ToolRegistry from all available toolkits and writes their
 combined schemas to tools.json in the same folder, grouped by toolkit.
 
-Run: python registry.py
+Run: python -m app.tools.toolkits to autogenerate tools.json
 """
 
 import json
