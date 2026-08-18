@@ -3,6 +3,8 @@ from app.tools.base import Toolkit
 
 class PipTools(Toolkit):
     namespace = "pip"
+    skills = "python-skills.md"
+    
 
     def __init__(self):
         ...

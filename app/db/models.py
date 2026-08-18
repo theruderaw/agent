@@ -41,8 +41,17 @@ class Run(SQLModel, table=True):
     )
 
     state: State = Field(
-        index=True,
-        nullable=False,
+        sa_column=Column(
+            SAEnum(
+                State,
+                name="state",
+                values_callable=lambda enum: [
+                    member.value for member in enum
+                ],
+            ),
+            nullable=False,
+            index=True,
+        ),
     )
 
     final_response: str | None = None

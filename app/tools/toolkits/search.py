@@ -22,6 +22,8 @@ class SearchResults(TypedDict):
 
 class SearchTools(Toolkit):
     namespace = "search"
+    skills = "research-skills.md"
+    
 
     def __init__(self):
         self.client = TavilyClient()

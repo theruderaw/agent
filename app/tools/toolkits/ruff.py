@@ -1,8 +1,10 @@
+from app import skills
 from app.tools.base import Toolkit
 
 
 class RuffTools(Toolkit):
     namespace = "ruff"
+    skills = "testing-skills.md"
 
     def __init__(self):
         ...

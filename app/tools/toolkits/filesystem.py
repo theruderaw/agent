@@ -4,11 +4,13 @@ import os
 import re
 import shutil
 
+from app import skills
 from app.tools.base import Toolkit
 
 
 class FilesystemTools(Toolkit):
     namespace = "file-system"
+    skills="filesystem-skills.md"
 
     def __init__(self):
         self.root = Path(__file__).parent.parent.parent.parent

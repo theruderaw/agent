@@ -2,10 +2,10 @@ from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
-    AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import settings
 

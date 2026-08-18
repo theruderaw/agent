@@ -1,8 +1,10 @@
+from app import skills
 from app.tools.base import Toolkit
 
 
 class PytestTools(Toolkit):
     namespace = "pytest"
+    skills = "testing-skills.md"
 
     def __init__(self):
         ...
