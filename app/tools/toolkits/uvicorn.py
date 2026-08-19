@@ -4,7 +4,7 @@ from app.tools.base import Toolkit
 
 class UvicornTools(Toolkit):
     namespace = "uvicorn"
-    skills = "python-skills.md"
+    skills = "python-skills"
 
     def __init__(self):
         ...

@@ -41,7 +41,7 @@ class HttpResponse(TypedDict):
 
 class HttpTools(Toolkit):
     namespace = "http"
-    skills = "research-skills.md"
+    skills = "research-skills"
 
     def __init__(
         self,

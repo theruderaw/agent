@@ -55,7 +55,7 @@ class FakeRegistry:
     def schemas(self):
         return [t.schema() for t in self._tools]
 
-    def dispatch(self, name, args):
+    async def dispatch(self, name, args):
         return FakeToolResult(data={"content": "hello"})
 
 

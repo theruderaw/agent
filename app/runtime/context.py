@@ -87,3 +87,15 @@ def _apply_event(context: RunContext, event_type: EventType, payload: dict[str, 
     elif event_type == EventType.TOOL_FAILED:
         context.tool_result = ToolResult(success=False, error=payload.get("error"))
         context.messages.append(ContextMessage(role="tool", content=json.dumps(payload)))
+
+    elif event_type == EventType.SKILL_REQUESTED:
+        pass  # metadata only; tracking handled by SKILL_RECEIVED
+
+    elif event_type == EventType.ASK_USER:
+        context.messages.append(ContextMessage(role="assistant", content=payload["question"]))
+
+    elif event_type == EventType.FINAL:
+        context.final_response = payload.get("content")
+
+    elif event_type == EventType.REFUSED:
+        context.final_response = payload.get("reason")

@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     ollama_read_timeout: float = 120
     ollama_write_timeout: float = 40
 
+    # HTTP
+    http_allowed_hosts: list[str] = []
+
     # Runtime
     max_iterations: int = 50
+    max_parse_retries: int = 3
 
     # Worker
     worker_concurrency: int = 1

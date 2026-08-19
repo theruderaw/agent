@@ -318,26 +318,30 @@ class TestToolRegistrySchemas:
 
 
 class TestToolRegistryDispatch:
-    def test_dispatch_success(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_success(self):
         reg = ToolRegistry()
         reg.register_toolkit(_GoodToolkit())
-        result = reg.dispatch("calc:add", {"a": 3, "b": 4})
+        result = await reg.dispatch("calc:add", {"a": 3, "b": 4})
         assert result.ok is True
         assert result.data == 7
 
-    def test_dispatch_unknown_tool(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_unknown_tool(self):
         reg = ToolRegistry()
         with pytest.raises(UnknownToolError):
-            reg.dispatch("no:such", {})
+            await reg.dispatch("no:such", {})
 
-    def test_dispatch_validation_error(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_validation_error(self):
         reg = ToolRegistry()
         reg.register_toolkit(_GoodToolkit())
         with pytest.raises(ToolValidationError) as exc_info:
-            reg.dispatch("calc:add", {"a": "not_int", "b": 1})
+            await reg.dispatch("calc:add", {"a": "not_int", "b": 1})
         assert exc_info.value.qualified_name == "calc:add"
 
-    def test_dispatch_tool_exception_returns_failure(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_tool_exception_returns_failure(self):
         class _FailToolkit:
             namespace = "fail"
 
@@ -347,11 +351,12 @@ class TestToolRegistryDispatch:
 
         reg = ToolRegistry()
         reg.register_toolkit(_FailToolkit())
-        result = reg.dispatch("fail:boom", {"msg": "kaboom"})
+        result = await reg.dispatch("fail:boom", {"msg": "kaboom"})
         assert result.ok is False
         assert "kaboom" in result.error
 
-    def test_dispatch_validates_before_calling(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_validates_before_calling(self):
         call_tracker = []
 
         class _Tracker:
@@ -363,14 +368,15 @@ class TestToolRegistryDispatch:
 
         reg = ToolRegistry()
         reg.register_toolkit(_Tracker())
-        reg.dispatch("track:log", {"msg": "hello"})
+        await reg.dispatch("track:log", {"msg": "hello"})
         assert call_tracker == ["hello"]
 
-    def test_dispatch_missing_required_field_causes_validation_error(self):
+    @pytest.mark.asyncio
+    async def test_dispatch_missing_required_field_causes_validation_error(self):
         reg = ToolRegistry()
         reg.register_toolkit(_GoodToolkit())
         with pytest.raises(ToolValidationError):
-            reg.dispatch("calc:add", {})
+            await reg.dispatch("calc:add", {})
 
 
 # ─────────────────────────────────────────────

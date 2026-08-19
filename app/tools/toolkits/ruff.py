@@ -4,7 +4,7 @@ from app.tools.base import Toolkit
 
 class RuffTools(Toolkit):
     namespace = "ruff"
-    skills = "testing-skills.md"
+    skills = "testing-skills"
 
     def __init__(self):
         ...

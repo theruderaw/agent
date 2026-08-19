@@ -119,10 +119,18 @@ class Qwen(LLM):
         client: httpx.AsyncClient,
         url: str,
         model: str,
+        connect_timeout: float = 5.0,
+        read_timeout: float = 30.0,
+        write_timeout: float = 10.0,
+        pool_timeout: float = 10.0,
     ):
         self.client = client
         self.url = url.rstrip("/")
         self.model = model
+        self.connect_timeout = connect_timeout
+        self.read_timeout = read_timeout
+        self.write_timeout = write_timeout
+        self.pool_timeout = pool_timeout
 
     def _format_instructions(self) -> str:
         """
@@ -196,10 +204,10 @@ class Qwen(LLM):
 
     async def generate(self, messages: list[Message]) -> LLMResponse:
         timeout = httpx.Timeout(
-            connect=5.0,
-            read=30.0,
-            write=10.0,
-            pool=10.0,
+            connect=self.connect_timeout,
+            read=self.read_timeout,
+            write=self.write_timeout,
+            pool=self.pool_timeout,
         )
 
         # Add the action-format instructions to the system message.

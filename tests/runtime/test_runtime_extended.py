@@ -11,7 +11,7 @@ import pytest
 from app.agent.models import AskUser, FinalAnswer, Refuse, SkillRequest, ToolCall
 from app.db.models import EventType
 from app.runtime.context import ContextMessage, RunContext
-from app.state.state import State
+from app.state.state import State, next_state
 
 
 # ─────────────────────────────────────────────
@@ -49,12 +49,12 @@ class FakeRegistry:
     def schemas(self):
         return [{"name": "calc:add", "description": "add", "input_schema": {}}]
 
-    def dispatch(self, tool, arguments):
+    async def dispatch(self, tool, arguments):
         return FakeToolResult(ok=True, data={"result": 42})
 
 
 class FailingRegistry(FakeRegistry):
-    def dispatch(self, tool, arguments):
+    async def dispatch(self, tool, arguments):
         return FakeToolResult(ok=False, error="tool crashed")
 
 
@@ -90,6 +90,13 @@ def make_session():
 
 def make_ctx(run_id, state=State.MODEL_CALL):
     return RunContext(run_id=run_id, state=state)
+
+
+def make_update_state_mock(run):
+    async def _update(run_id, action=None):
+        run.state = next_state(run.state, action=action)
+        return run
+    return AsyncMock(side_effect=_update)
 
 
 def llm_response(action_dict):
@@ -129,7 +136,7 @@ class TestSkillNotFound:
             mock_load.return_value = ctx
             MockRunRepo.return_value.get = AsyncMock(return_value=run)
             MockRunRepo.return_value.set_final_response = AsyncMock(return_value=run)
-            MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
+            MockRunRepo.return_value.update_state = make_update_state_mock(run)
             MockEventRepo.return_value.append = AsyncMock()
 
             await execute_run(
@@ -138,6 +145,10 @@ class TestSkillNotFound:
 
         assert "nonexistent" not in ctx.loaded_skills
         assert ctx.state == State.FINAL
+
+        skill_msgs = [m for m in ctx.messages if "not available" in m.content]
+        assert len(skill_msgs) == 1
+        assert "nonexistent" in skill_msgs[0].content
 
 
 # ─────────────────────────────────────────────

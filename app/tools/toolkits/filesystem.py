@@ -10,7 +10,7 @@ from app.tools.base import Toolkit
 
 class FilesystemTools(Toolkit):
     namespace = "file-system"
-    skills="filesystem-skills.md"
+    skills = "filesystem-skills"
 
     def __init__(self):
         self.root = Path(__file__).parent.parent.parent.parent

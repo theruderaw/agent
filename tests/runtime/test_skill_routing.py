@@ -30,7 +30,7 @@ from app.runtime.util import (
     build_skills_section,
     build_tools_section,
 )
-from app.state.state import State
+from app.state.state import State, next_state
 
 
 # ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ class SearchRegistry:
             },
         ]
 
-    def dispatch(self, tool, arguments):
+    async def dispatch(self, tool, arguments):
         return FakeToolResult(
             ok=True,
             data={"results": [{"title": "news", "content": "today's news"}]},
@@ -108,7 +108,7 @@ class FilesystemRegistry:
             },
         ]
 
-    def dispatch(self, tool, arguments):
+    async def dispatch(self, tool, arguments):
         return FakeToolResult(ok=True, data={"content": "hello world"})
 
 
@@ -118,7 +118,7 @@ class EmptyRegistry:
     def schemas(self):
         return []
 
-    def dispatch(self, tool, arguments):
+    async def dispatch(self, tool, arguments):
         return FakeToolResult(ok=False, error="no tools registered")
 
 
@@ -160,6 +160,13 @@ def make_ctx(run_id, state=State.MODEL_CALL, loaded_skills=None):
         state=state,
         loaded_skills=loaded_skills or set(),
     )
+
+
+def make_update_state_mock(run):
+    async def _update(run_id, action=None):
+        run.state = next_state(run.state, action=action)
+        return run
+    return AsyncMock(side_effect=_update)
 
 
 def llm_response(action_dict):
@@ -233,7 +240,7 @@ class TestResearchSkillRequest:
             mock_load.return_value = ctx
             MockRunRepo.return_value.get = AsyncMock(return_value=run)
             MockRunRepo.return_value.set_final_response = AsyncMock(return_value=run)
-            MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
+            MockRunRepo.return_value.update_state = make_update_state_mock(run)
             MockEventRepo.return_value.append = AsyncMock()
             MockToolExec.return_value.create_execution = AsyncMock(return_value=fake_execution)
             MockToolExec.return_value.complete_execution = AsyncMock(return_value=fake_execution)
@@ -298,7 +305,7 @@ class TestFilesystemSkillRequest:
             mock_load.return_value = ctx
             MockRunRepo.return_value.get = AsyncMock(return_value=run)
             MockRunRepo.return_value.set_final_response = AsyncMock(return_value=run)
-            MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
+            MockRunRepo.return_value.update_state = make_update_state_mock(run)
             MockEventRepo.return_value.append = AsyncMock()
             MockToolExec.return_value.create_execution = AsyncMock(return_value=fake_execution)
             MockToolExec.return_value.complete_execution = AsyncMock(return_value=fake_execution)
@@ -432,7 +439,7 @@ class TestToolExecutionAfterSkillLoad:
             mock_load.return_value = ctx
             MockRunRepo.return_value.get = AsyncMock(return_value=run)
             MockRunRepo.return_value.set_final_response = AsyncMock(return_value=run)
-            MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
+            MockRunRepo.return_value.update_state = make_update_state_mock(run)
             MockEventRepo.return_value.append = AsyncMock()
             MockToolExec.return_value.create_execution = AsyncMock(return_value=fake_execution)
             MockToolExec.return_value.complete_execution = AsyncMock(return_value=fake_execution)
@@ -493,7 +500,7 @@ class TestStateTransitions:
             mock_load.return_value = ctx
             MockRunRepo.return_value.get = AsyncMock(return_value=run)
             MockRunRepo.return_value.set_final_response = AsyncMock(return_value=run)
-            MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
+            MockRunRepo.return_value.update_state = make_update_state_mock(run)
             MockEventRepo.return_value.append = AsyncMock()
             MockToolExec.return_value.create_execution = AsyncMock(return_value=fake_execution)
             MockToolExec.return_value.complete_execution = AsyncMock(return_value=fake_execution)

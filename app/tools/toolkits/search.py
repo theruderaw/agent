@@ -22,11 +22,17 @@ class SearchResults(TypedDict):
 
 class SearchTools(Toolkit):
     namespace = "search"
-    skills = "research-skills.md"
+    skills = "research-skills"
     
 
     def __init__(self):
-        self.client = TavilyClient()
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = TavilyClient()
+        return self._client
 
     def search(self, query: str, max_results: int = 5) -> SearchResults:
         """Run a web search for the given query and return the top matching results, along with a synthesized answer."""

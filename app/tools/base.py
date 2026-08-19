@@ -209,7 +209,7 @@ class ToolRegistry:
             grouped.setdefault(tool.namespace, {})[tool.method_name] = tool.schema()
         return grouped
 
-    def dispatch(self, qualified_name: str, raw_arguments: dict) -> ToolResult:
+    async def dispatch(self, qualified_name: str, raw_arguments: dict) -> ToolResult:
         """
         LLM -> qualified_name + raw_arguments -> registry -> tool
         -> Pydantic validation -> execute -> ToolResult
@@ -223,6 +223,8 @@ class ToolRegistry:
 
         try:
             result = tool.bound_method(**validated.model_dump())
+            if inspect.isawaitable(result):
+                result = await result
         except Exception as e:  # noqa: BLE001 - tool failures shouldn't crash the runtime
             return ToolResult.failure(str(e))
 
