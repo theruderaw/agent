@@ -148,6 +148,27 @@ class TestApplyEvent:
         assert ctx.current_action.tool == "calc"
         assert ctx.current_action.arguments == {"expr": "1+1"}
 
+    def test_skill_requested_is_noop(self):
+        ctx = RunContext(run_id=uuid4(), state=State.SKILL_REQUESTED)
+        _apply_event(ctx, EventType.SKILL_REQUESTED, {"skill": "git"})
+        assert ctx.messages == []
+        assert ctx.loaded_skills == set()
+
+    def test_ask_user_appends_question_as_assistant_message(self):
+        ctx = RunContext(run_id=uuid4(), state=State.WAITING_FOR_USER)
+        _apply_event(ctx, EventType.ASK_USER, {"question": "Which file?"})
+        assert ctx.messages == [ContextMessage(role="assistant", content="Which file?")]
+
+    def test_final_sets_final_response(self):
+        ctx = RunContext(run_id=uuid4(), state=State.FINAL)
+        _apply_event(ctx, EventType.FINAL, {"content": "Done."})
+        assert ctx.final_response == "Done."
+
+    def test_refused_sets_final_response(self):
+        ctx = RunContext(run_id=uuid4(), state=State.REFUSED)
+        _apply_event(ctx, EventType.REFUSED, {"reason": "Cannot do that."})
+        assert ctx.final_response == "Cannot do that."
+
 
 # ---------------------------------------------------------------------------
 # load_context — full replay through a mocked repository layer

@@ -10,6 +10,7 @@ Run: python -m app.tools.toolkits to autogenerate tools.json
 import json
 from pathlib import Path
 
+from app.core import settings
 from app.tools.base import ToolRegistry
 from app.tools.toolkits.communication import CommunicationTools
 from app.tools.toolkits.database import DatabaseTools
@@ -43,8 +44,8 @@ TOOLKITS = [
     EnvironmentTools(),
     FilesystemTools(),
     GitTools(),
-    HttpTools(),
-    ModelTools(),
+    HttpTools(allowed_hosts=settings.http_allowed_hosts),
+    # ModelTools(),
     MypyTools(),
     # PipTools(),
     ProcessTools(),

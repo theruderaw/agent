@@ -12,8 +12,9 @@ from app.api.schemas import (
     UserInputResponse,
 )
 from app.db.database import get_session
+from app.db.models import EventType
 from app.db.repository import EventRepository, RunRepository
-from app.state.state import State
+from app.state.state import State, next_state
 from app.worker.tasks import execute_run_task
 
 router = APIRouter()
@@ -25,12 +26,11 @@ async def create_run(
     session: AsyncSession = Depends(get_session),
 ):
     repo = RunRepository(session)
-    run_id = await repo.create()
+    run = await repo.create()
     await session.commit()
 
-    execute_run_task.delay(str(run_id))
+    execute_run_task.delay(str(run.id))
 
-    run = await repo.get(run_id)
     return RunResponse(
         run_id=run.id,
         state=run.state,
@@ -107,9 +107,17 @@ async def send_user_input(
             detail=f"Run is in state '{run.state}', not waiting for user input",
         )
 
+    event_repo = EventRepository(session)
+    await event_repo.append(
+        run_id=run_id,
+        event_type=EventType.USER_INPUT,
+        payload={"input": body.input},
+    )
+    run.state = next_state(State.WAITING_FOR_USER)
+    await session.commit()
+
     execute_run_task.delay(str(run_id), user_input=body.input)
 
-    run = await repo.get(run_id)
     return UserInputResponse(
         run_id=run.id,
         state=run.state,

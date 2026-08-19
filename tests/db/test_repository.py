@@ -1,7 +1,7 @@
 """Tests for app/db/repository.py — all branches."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -39,11 +39,9 @@ class TestRunRepositoryCreate:
         session = make_session()
         repo = RunRepository(session)
 
-        created_run = Run(id=uuid4(), state=State.START)
-        session.refresh.side_effect = lambda r: setattr(r, "id", created_run.id)
-
-        run_id = await repo.create()
-        assert run_id is not None
+        run = await repo.create()
+        assert run is not None
+        assert run.state == State.START
         session.add.assert_called_once()
         session.flush.assert_awaited_once()
         session.refresh.assert_awaited_once()
@@ -58,7 +56,6 @@ class TestRunRepositoryCreate:
             flush_called.append(True)
 
         session.flush.side_effect = track_flush
-        session.refresh.side_effect = lambda r: setattr(r, "id", uuid4())
 
         await repo.create()
         assert len(flush_called) == 1
@@ -137,7 +134,8 @@ class TestRunRepositorySetFinalResponse:
         run = Run(id=run_id, state=State.MODEL_CALL)
         session.get.return_value = run
 
-        result = await repo.set_final_response(run_id, "the answer")
+        action = FinalAnswer(content="the answer")
+        result = await repo.set_final_response(run_id, "the answer", action=action)
         assert result.final_response == "the answer"
         assert result.state == State.FINAL
         session.flush.assert_awaited_once()
@@ -152,7 +150,8 @@ class TestRunRepositorySetRefusedResponse:
         run = Run(id=run_id, state=State.MODEL_CALL)
         session.get.return_value = run
 
-        result = await repo.set_refused_response(run_id, "cannot")
+        action = Refuse(reason="cannot")
+        result = await repo.set_refused_response(run_id, "cannot", action=action)
         assert result.final_response == "cannot"
         assert result.state == State.REFUSED
         session.flush.assert_awaited_once()
@@ -337,15 +336,12 @@ class TestToolExecutionRepositoryComplete:
         result_mock.one.return_value = 1
         session.exec.return_value = result_mock
 
-        with patch("app.db.repository.RunRepository") as MockRunRepo:
-            MockRunRepo.return_value.update_state = AsyncMock()
-
-            result = await repo.complete_execution(
-                tool_id, run_id, success=True, result={"data": 42}, error=None
-            )
-            assert result.success is True
-            assert result.result == {"data": 42}
-            assert result.completed_at is not None
+        result = await repo.complete_execution(
+            tool_id, run_id, success=True, result={"data": 42}, error=None
+        )
+        assert result.success is True
+        assert result.result == {"data": 42}
+        assert result.completed_at is not None
 
     @pytest.mark.asyncio
     async def test_complete_execution_failure(self):
@@ -365,14 +361,11 @@ class TestToolExecutionRepositoryComplete:
         result_mock.one.return_value = 1
         session.exec.return_value = result_mock
 
-        with patch("app.db.repository.RunRepository") as MockRunRepo:
-            MockRunRepo.return_value.update_state = AsyncMock()
-
-            result = await repo.complete_execution(
-                tool_id, run_id, success=False, result=None, error="boom"
-            )
-            assert result.success is False
-            assert result.error == "boom"
+        result = await repo.complete_execution(
+            tool_id, run_id, success=False, result=None, error="boom"
+        )
+        assert result.success is False
+        assert result.error == "boom"
 
     @pytest.mark.asyncio
     async def test_complete_execution_nonexistent_raises(self):

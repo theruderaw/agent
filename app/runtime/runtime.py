@@ -33,7 +33,7 @@ from app.runtime.context import ContextMessage, RunContext, load_context
 from app.runtime.util import ModelParseError, build_messages, call_llm
 from app.skills.loader import SkillLoader
 from app.state.state import State, next_state
-from app.tools.base import ToolRegistry
+from app.tools.base import ToolRegistry, ToolResult, ToolValidationError, UnknownToolError
 
 logger = logging.getLogger(__name__)
 
@@ -55,12 +55,15 @@ async def _handle_tool_call(
         tool_name=action.tool,
         arguments=action.arguments,
     )
-    await session.commit()
 
     await runs.update_state(ctx.run_id, action=action)
-    await session.commit()
+    await session.flush()
 
-    result = registry.dispatch(action.tool, action.arguments)
+    try:
+        result = await registry.dispatch(action.tool, action.arguments)
+    except (UnknownToolError, ToolValidationError) as e:
+        logger.warning("Tool dispatch failed for '%s': %s", action.tool, e)
+        result = ToolResult.failure(str(e))
 
     payload = {"result": {"data": result.data}} if result.ok else {"error": result.error}
 
@@ -71,6 +74,8 @@ async def _handle_tool_call(
         result={"data": result.data} if result.ok else None,
         error=result.error,
     )
+
+    await runs.update_state(ctx.run_id)
     await session.commit()
 
     ctx.messages.append(ContextMessage(role="tool", content=json.dumps(payload)))
@@ -85,14 +90,24 @@ async def _handle_skill_request(
     session: AsyncSession,
 ) -> None:
     await runs.update_state(ctx.run_id, action=action)
-    await session.commit()
+
+    await events.append(
+        run_id=ctx.run_id,
+        event_type=EventType.SKILL_REQUESTED,
+        payload={"skill": action.skill},
+    )
 
     try:
         skill_loader.load(action.skill)
     except Exception as e:
         logger.warning("Skill '%s' not found: %s", action.skill, e)
+        ctx.messages.append(ContextMessage(
+            role="user",
+            content=f"Skill '{action.skill}' is not available: {e}. Try a different approach.",
+        ))
         run = await runs.get(ctx.run_id)
-        run.state = State.MODEL_CALL
+        run.state = next_state(run.state)
+        ctx.state = run.state
         await session.flush()
         await session.commit()
         return
@@ -106,11 +121,10 @@ async def _handle_skill_request(
     )
 
     run = await runs.get(ctx.run_id)
-    run.state = State.MODEL_CALL
+    run.state = next_state(run.state)
+    ctx.state = run.state
     await session.flush()
     await session.commit()
-
-    ctx.state = State.MODEL_CALL
 
 
 async def _handle_final(
@@ -126,7 +140,7 @@ async def _handle_final(
         payload={"content": action.content},
     )
 
-    await runs.set_final_response(ctx.run_id, action.content)
+    await runs.set_final_response(ctx.run_id, action.content, action=action)
     await session.commit()
 
 
@@ -143,7 +157,7 @@ async def _handle_refuse(
         payload={"reason": action.reason},
     )
 
-    await runs.set_refused_response(ctx.run_id, action.reason)
+    await runs.set_refused_response(ctx.run_id, action.reason, action=action)
     await session.commit()
 
 
@@ -207,6 +221,7 @@ async def execute_run(
         return
 
     # Main loop
+    parse_retries = 0
     for iteration in range(settings.max_iterations):
         if ctx.state in (State.STOP, State.FAILED):
             break
@@ -229,6 +244,15 @@ async def execute_run(
                 role="user",
                 content=f"Error: {e.reason}. Raw output:\n{e.content}",
             ))
+            parse_retries += 1
+            if parse_retries <= settings.max_parse_retries:
+                logger.warning(
+                    "Parse error (attempt %d/%d): %s",
+                    parse_retries,
+                    settings.max_parse_retries,
+                    e.reason,
+                )
+                continue
             await _handle_ask_user(
                 ctx,
                 AskUser(question=f"Model produced invalid output:\n{e.content}"),

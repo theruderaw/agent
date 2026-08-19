@@ -42,7 +42,7 @@ class GitCommitInfo(TypedDict):
 
 class GitTools(Toolkit):
     namespace = "git"
-    skills = "git-skills.md"
+    skills = "git-skills"
 
     def __init__(self):
         self.root = Path(__file__).parent.parent.parent.parent.resolve()

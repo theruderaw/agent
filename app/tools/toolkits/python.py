@@ -5,7 +5,7 @@ from app.tools.base import Toolkit
 
 class PythonTools(Toolkit):
     namespace = "python"
-    skills = "python-skills.md"
+    skills = "python-skills"
     
 
     def __init__(self):

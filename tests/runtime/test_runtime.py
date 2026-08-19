@@ -20,7 +20,7 @@ import pytest
 from app.agent.models import AskUser, FinalAnswer, Refuse, SkillRequest, ToolCall
 from app.db.models import EventType
 from app.runtime.context import ContextMessage, RunContext, load_context
-from app.state.state import State
+from app.state.state import State, next_state
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ class FakeRegistry:
     def schemas(self):
         return [{"name": "calc:add", "description": "add two numbers", "input_schema": {}}]
 
-    def dispatch(self, tool, arguments):
+    async def dispatch(self, tool, arguments):
         return FakeToolResult(ok=True, data={"result": 42})
 
 
@@ -86,6 +86,13 @@ def make_session():
 
 def make_ctx(run_id, state=State.MODEL_CALL):
     return RunContext(run_id=run_id, state=state)
+
+
+def make_update_state_mock(run):
+    async def _update(run_id, action=None):
+        run.state = next_state(run.state, action=action)
+        return run
+    return AsyncMock(side_effect=_update)
 
 
 def llm_response(action_dict):
@@ -216,7 +223,7 @@ class TestSkillRoundTrip:
             mock_load.return_value = ctx
             MockRunRepo.return_value.get = AsyncMock(return_value=run)
             MockRunRepo.return_value.set_final_response = AsyncMock(return_value=run)
-            MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
+            MockRunRepo.return_value.update_state = make_update_state_mock(run)
             MockEventRepo.return_value.append = AsyncMock()
 
             await execute_run(run_id, session, llm, FakeRegistry(), FakeSkillLoader())
@@ -289,7 +296,9 @@ class TestFinalAnswerPersistsFinal:
 
             await execute_run(run_id, session, llm, FakeRegistry(), FakeSkillLoader())
 
-        MockRunRepo.return_value.set_final_response.assert_awaited_once_with(run_id, "the answer is 42")
+        MockRunRepo.return_value.set_final_response.assert_awaited_once_with(
+            run_id, "the answer is 42", action=FinalAnswer(content="the answer is 42"),
+        )
         assert ctx.state == State.FINAL
 
 
@@ -321,7 +330,9 @@ class TestRefusalPersistsRefused:
 
             await execute_run(run_id, session, llm, FakeRegistry(), FakeSkillLoader())
 
-        MockRunRepo.return_value.set_refused_response.assert_awaited_once_with(run_id, "cannot do that")
+        MockRunRepo.return_value.set_refused_response.assert_awaited_once_with(
+            run_id, "cannot do that", action=Refuse(reason="cannot do that"),
+        )
         assert ctx.state == State.REFUSED
 
 
@@ -337,14 +348,57 @@ class TestParseFailure:
         session = make_session()
         session.commit = AsyncMock()
 
-        llm = FakeLLM(["not valid json at all"])
+        invalid = "not valid json at all"
+        valid = json.dumps({"action": "final", "content": "ok"})
+        llm = FakeLLM([invalid, invalid, invalid, valid])
 
         with (
             patch("app.runtime.runtime.RunRepository") as MockRunRepo,
             patch("app.runtime.runtime.EventRepository") as MockEventRepo,
             patch("app.runtime.runtime.ToolExecutionRepository"),
             patch("app.runtime.runtime.load_context", new_callable=AsyncMock) as mock_load,
+            patch("app.runtime.runtime.settings") as mock_settings,
         ):
+            mock_settings.max_iterations = 50
+            mock_settings.max_parse_retries = 3
+            mock_load.return_value = ctx
+            MockRunRepo.return_value.get = AsyncMock(return_value=run)
+            MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
+            MockRunRepo.return_value.set_final_response = AsyncMock(return_value=run)
+            MockEventRepo.return_value.append = AsyncMock()
+
+            await execute_run(run_id, session, llm, FakeRegistry(), FakeSkillLoader())
+
+        model_output_errors = [
+            c for c in MockEventRepo.return_value.append.call_args_list
+            if c.kwargs.get("event_type") == EventType.MODEL_OUTPUT
+            and c.kwargs["payload"].get("action") is None
+        ]
+        assert len(model_output_errors) == 3
+        assert ctx.state == State.FINAL
+
+    @pytest.mark.asyncio
+    async def test_parse_failure_exhausts_retries_to_waiting(self):
+        from app.runtime.runtime import execute_run
+
+        run_id = uuid4()
+        run = FakeRun(id=run_id, state=State.MODEL_CALL)
+
+        ctx = make_ctx(run_id, State.MODEL_CALL)
+        session = make_session()
+        session.commit = AsyncMock()
+
+        llm = FakeLLM(["bad1", "bad2", "bad3", "bad4"])
+
+        with (
+            patch("app.runtime.runtime.RunRepository") as MockRunRepo,
+            patch("app.runtime.runtime.EventRepository") as MockEventRepo,
+            patch("app.runtime.runtime.ToolExecutionRepository"),
+            patch("app.runtime.runtime.load_context", new_callable=AsyncMock) as mock_load,
+            patch("app.runtime.runtime.settings") as mock_settings,
+        ):
+            mock_settings.max_iterations = 50
+            mock_settings.max_parse_retries = 3
             mock_load.return_value = ctx
             MockRunRepo.return_value.get = AsyncMock(return_value=run)
             MockRunRepo.return_value.update_state = AsyncMock(return_value=run)
@@ -356,9 +410,7 @@ class TestParseFailure:
             c for c in MockEventRepo.return_value.append.call_args_list
             if c.kwargs.get("event_type") == EventType.MODEL_OUTPUT
         ]
-        assert len(model_output_calls) == 1
-        assert model_output_calls[0].kwargs["payload"]["action"] is None
-        assert "error" in model_output_calls[0].kwargs["payload"]
+        assert len(model_output_calls) == 4
         assert ctx.state == State.WAITING_FOR_USER
 
 

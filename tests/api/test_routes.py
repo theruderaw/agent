@@ -50,8 +50,7 @@ class TestCreateRun:
             patch("app.api.routes.RunRepository") as MockRepo,
             patch("app.api.routes.execute_run_task") as mock_task,
         ):
-            MockRepo.return_value.create = AsyncMock(return_value=run.id)
-            MockRepo.return_value.get = AsyncMock(return_value=run)
+            MockRepo.return_value.create = AsyncMock(return_value=run)
 
             result = await create_run(session=mock_session)
 
@@ -69,8 +68,7 @@ class TestCreateRun:
             patch("app.api.routes.RunRepository") as MockRepo,
             patch("app.api.routes.execute_run_task"),
         ):
-            MockRepo.return_value.create = AsyncMock(return_value=run.id)
-            MockRepo.return_value.get = AsyncMock(return_value=run)
+            MockRepo.return_value.create = AsyncMock(return_value=run)
 
             await create_run(session=mock_session)
 
@@ -209,16 +207,20 @@ class TestSendUserInput:
 
         with (
             patch("app.api.routes.RunRepository") as MockRepo,
+            patch("app.api.routes.EventRepository") as MockEventRepo,
             patch("app.api.routes.execute_run_task") as mock_task,
         ):
             MockRepo.return_value.get = AsyncMock(return_value=run)
+            MockEventRepo.return_value.append = AsyncMock()
 
             body = UserInputRequest(input="hello agent")
             result = await send_user_input(run_id=run.id, body=body, session=mock_session)
 
         assert result.run_id == run.id
-        assert result.state == "waiting_for_user"
+        assert result.state == "model_call"
         mock_task.delay.assert_called_once_with(str(run.id), user_input="hello agent")
+        MockEventRepo.return_value.append.assert_awaited_once()
+        mock_session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_send_input_not_waiting_409(self, mock_session):

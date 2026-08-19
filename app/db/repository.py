@@ -14,7 +14,7 @@ class RunRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def create(self) -> UUID:
+    async def create(self) -> Run:
         run = Run(
             state=State.START,
         )
@@ -22,7 +22,7 @@ class RunRepository:
         self.session.add(run)
         await self.session.flush()
         await self.session.refresh(run)
-        return run.id
+        return run
 
     async def get(self, run_id: UUID) -> Run:
         run = await self.session.get(Run, run_id)
@@ -40,17 +40,21 @@ class RunRepository:
         await self.session.flush()
         return run
 
-    async def set_final_response(self, run_id: UUID, response: str) -> Run:
+    async def set_final_response(
+        self, run_id: UUID, response: str, action: AgentAction | None = None,
+    ) -> Run:
         run = await self.get(run_id)
         run.final_response = response
-        run.state = State.FINAL
+        run.state = next_state(run.state, action=action)
         await self.session.flush()
         return run
 
-    async def set_refused_response(self, run_id: UUID, reason: str) -> Run:
+    async def set_refused_response(
+        self, run_id: UUID, reason: str, action: AgentAction | None = None,
+    ) -> Run:
         run = await self.get(run_id)
         run.final_response = reason
-        run.state = State.REFUSED
+        run.state = next_state(run.state, action=action)
         await self.session.flush()
         return run
 
@@ -129,7 +133,7 @@ class ToolExecutionRepository:
         await events.append(
             run_id=run_id,
             event_type=EventType.TOOL_CALL,
-            payload=arguments,
+            payload={"tool": tool_name, "arguments": arguments},
         )
 
         return tool
@@ -158,8 +162,5 @@ class ToolExecutionRepository:
             event_type=EventType.TOOL_RESULT if success else EventType.TOOL_FAILED,
             payload={"result": result} if success else {"error": error},
         )
-
-        runs = RunRepository(self.session)
-        await runs.update_state(run_id)
 
         return tool
